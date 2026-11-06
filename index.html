@@ -1,0 +1,710 @@
+# GTA-7
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grand City Open World</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ overflow:hidden;
+ background:#111;
+ font-family:Arial,sans-serif;
+ color:white;
+}
+canvas{display:block}
+#hud{
+ position:absolute;
+ top:0;
+ left:0;
+ width:100%;
+ padding:15px;
+ pointer-events:none;
+}
+.top{
+ display:flex;
+ justify-content:space-between;
+ gap:10px;
+ align-items:flex-start;
+}
+.panel{
+ background:#101827dd;
+ padding:12px;
+ border:1px solid #39caff;
+ border-radius:12px;
+ box-shadow:0 0 15px #00aaff55;
+}
+#speed{
+ font-size:27px;
+ color:#48eaff;
+ font-weight:bold;
+}
+#mission{
+ margin-top:12px;
+ max-width:280px;
+}
+#map{
+ width:125px;
+ height:125px;
+ border:2px solid #45dfff;
+ border-radius:12px;
+ background:#18243b;
+}
+#controls{
+ position:absolute;
+ bottom:20px;
+ left:0;
+ right:0;
+ display:flex;
+ justify-content:space-between;
+ padding:15px;
+ pointer-events:none;
+}
+.group{
+ display:flex;
+ gap:10px;
+ align-items:end;
+}
+.control{
+ pointer-events:auto;
+ width:65px;
+ height:65px;
+ border-radius:50%;
+ border:2px solid #5ceaff;
+ background:#102c50cc;
+ color:white;
+ font-size:22px;
+ font-weight:bold;
+ touch-action:none;
+}
+.control:active{background:#087edb}
+#menu{
+ position:absolute;
+ inset:0;
+ background:linear-gradient(135deg,#09152b,#183f72);
+ display:flex;
+ justify-content:center;
+ align-items:center;
+ text-align:center;
+ z-index:5;
+ padding:20px;
+}
+.menu-box{
+ max-width:480px;
+ width:100%;
+ background:#ffffff12;
+ padding:25px;
+ border:1px solid #55dfff;
+ border-radius:20px;
+}
+h1{color:#55eaff;font-size:32px}
+.menu-box button{
+ width:100%;
+ padding:14px;
+ margin:7px 0;
+ border:0;
+ border-radius:10px;
+ background:#00c9ff;
+ color:#07172c;
+ font-weight:bold;
+ font-size:16px;
+ cursor:pointer;
+}
+#garage{
+ position:absolute;
+ top:50%;
+ left:50%;
+ transform:translate(-50%,-50%);
+ background:#101827f5;
+ border:1px solid #45dfff;
+ border-radius:15px;
+ padding:20px;
+ z-index:4;
+ width:85%;
+ max-width:350px;
+ display:none;
+ text-align:center;
+}
+#garage button{
+ padding:12px;
+ margin:5px;
+ background:#0acfff;
+ border:0;
+ border-radius:8px;
+ font-weight:bold;
+}
+#message{
+ position:absolute;
+ top:48%;
+ left:50%;
+ transform:translate(-50%,-50%);
+ background:#081a30dd;
+ padding:15px 25px;
+ border-radius:12px;
+ text-align:center;
+ display:none;
+ border:1px solid #3ceaff;
+}
+@media(max-width:600px){
+ h1{font-size:25px}
+ #map{width:95px;height:95px}
+ .control{width:58px;height:58px}
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+ <div class="menu-box">
+  <h1>🏎️ GRAND CITY</h1>
+  <h2>OPEN WORLD</h2>
+  <p>Explore the city. Drive your dream car.</p>
+  <button onclick="startGame()">▶ START GAME</button>
+  <button onclick="openGarage()">🚘 SELECT CAR</button>
+  <p>WASD / Arrow Keys = Drive</p>
+  <p>SHIFT = Nitro | SPACE = Drift</p>
+ </div>
+</div>
+
+<div id="garage">
+ <h2>🚘 CAR GARAGE</h2>
+ <button onclick="selectCar(0)">SPORTS CAR</button>
+ <button onclick="selectCar(1)">SUPERCAR</button>
+ <button onclick="selectCar(2)">OFFROAD</button>
+ <button onclick="closeGarage()">CLOSE</button>
+</div>
+
+<div id="hud">
+ <div class="top">
+  <div class="panel">
+   <div id="speed">0 KM/H</div>
+   <div id="coins">💰 Coins: 0</div>
+   <div id="carName">Sports Car</div>
+   <div id="nitro">⚡ NITRO READY</div>
+  </div>
+  <div class="panel" id="mapPanel">
+   <canvas id="map" width="125" height="125"></canvas>
+  </div>
+ </div>
+
+ <div class="panel" id="mission">
+  <b>🎯 CURRENT MISSION</b>
+  <p id="missionText">Reach the first checkpoint!</p>
+ </div>
+</div>
+
+<div id="message"></div>
+
+<div id="controls">
+ <div class="group">
+  <button class="control" id="left">◀</button>
+  <button class="control" id="right">▶</button>
+ </div>
+ <div class="group">
+  <button class="control" id="brake">▼</button>
+  <button class="control" id="gas">▲</button>
+  <button class="control" id="boost">⚡</button>
+ </div>
+</div>
+
+<div id="garage">
+</div>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+ }
+}
+</script>
+
+<script type="module">
+
+import * as THREE from "three";
+
+// SCENE
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87bce8);
+scene.fog=new THREE.Fog(0x87bce8,100,450);
+
+const camera=new THREE.PerspectiveCamera(
+ 65,innerWidth/innerHeight,0.1,1000
+);
+
+const renderer=new THREE.WebGLRenderer({
+ antialias:true
+});
+
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
+
+document.body.appendChild(renderer.domElement);
+
+// LIGHTS
+scene.add(new THREE.HemisphereLight(0xffffff,0x445566,2));
+
+const sun=new THREE.DirectionalLight(0xffffff,3);
+sun.position.set(100,150,80);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+scene.add(sun);
+
+// GROUND
+const ground=new THREE.Mesh(
+ new THREE.PlaneGeometry(600,600),
+ new THREE.MeshStandardMaterial({color:0x426b48})
+);
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+scene.add(ground);
+
+// ROAD GRID
+const roadMat=new THREE.MeshStandardMaterial({
+ color:0x252a33,roughness:0.9
+});
+
+function road(x,z,w,d){
+ const r=new THREE.Mesh(
+  new THREE.PlaneGeometry(w,d),roadMat
+ );
+ r.rotation.x=-Math.PI/2;
+ r.position.set(x,0.04,z);
+ scene.add(r);
+}
+
+for(let i=-250;i<=250;i+=80){
+ road(i,0,18,600);
+ road(0,i,600,18);
+}
+
+// ROAD MARKINGS
+const lineMat=new THREE.MeshBasicMaterial({color:0xf5e9a8});
+
+for(let i=-280;i<=280;i+=15){
+ for(let j=-280;j<=280;j+=15){
+  const line=new THREE.Mesh(
+   new THREE.PlaneGeometry(0.3,5),lineMat
+  );
+  line.rotation.x=-Math.PI/2;
+  line.position.set(i,0.07,j);
+  scene.add(line);
+ }
+}
+
+// BUILDINGS
+const buildingColors=[
+ 0x9baec5,0xb9a18d,0x667d99,
+ 0xc6c9ce,0x6b8592,0x8b759b
+];
+
+for(let x=-240;x<=240;x+=40){
+ for(let z=-240;z<=240;z+=40){
+
+  if(Math.abs(x%80)<12 || Math.abs(z%80)<12)continue;
+
+  let h=12+Math.random()*40;
+  let w=12+Math.random()*12;
+
+  const building=new THREE.Mesh(
+   new THREE.BoxGeometry(w,h,w),
+   new THREE.MeshStandardMaterial({
+    color:buildingColors[
+     Math.floor(Math.random()*buildingColors.length)
+    ]
+   })
+  );
+
+  building.position.set(
+   x+(Math.random()-0.5)*8,
+   h/2,
+   z+(Math.random()-0.5)*8
+  );
+
+  building.castShadow=true;
+  building.receiveShadow=true;
+  scene.add(building);
+
+  // WINDOWS
+  for(let y=4;y<h-3;y+=6){
+   for(let side=-1;side<=1;side+=2){
+    const win=new THREE.Mesh(
+     new THREE.BoxGeometry(0.2,2,2),
+     new THREE.MeshBasicMaterial({color:0x9fe5ff})
+    );
+    win.position.set(
+     building.position.x+side*(w/2+0.12),
+     y,
+     building.position.z
+    );
+    scene.add(win);
+   }
+  }
+ }
+}
+
+// CAR CREATOR
+function createCar(color){
+
+ const car=new THREE.Group();
+
+ const body=new THREE.Mesh(
+  new THREE.BoxGeometry(2.1,0.7,4),
+  new THREE.MeshStandardMaterial({
+   color,metalness:0.5,roughness:0.3
+  })
+ );
+ body.position.y=0.75;
+ body.castShadow=true;
+ car.add(body);
+
+ const cabin=new THREE.Mesh(
+  new THREE.BoxGeometry(1.65,0.75,1.9),
+  new THREE.MeshStandardMaterial({
+   color:0x162e45,metalness:0.3,roughness:0.2
+  })
+ );
+ cabin.position.set(0,1.35,-0.2);
+ cabin.castShadow=true;
+ car.add(cabin);
+
+ const wheelGeo=new THREE.CylinderGeometry(0.43,0.43,0.3,20);
+ const wheelMat=new THREE.MeshStandardMaterial({color:0x111111});
+
+ car.userData.wheels=[];
+
+ for(let x of [-1.05,1.05]){
+  for(let z of [-1.25,1.25]){
+   const wheel=new THREE.Mesh(wheelGeo,wheelMat);
+   wheel.rotation.z=Math.PI/2;
+   wheel.position.set(x,0.45,z);
+   car.add(wheel);
+   car.userData.wheels.push(wheel);
+  }
+ }
+
+ return car;
+}
+
+// PLAYER CAR
+const colors=[0xff3030,0x15caff,0xf5be32];
+const names=["Sports Car","Supercar","Offroad"];
+
+let carType=0;
+let player=createCar(colors[carType]);
+scene.add(player);
+player.position.set(0,0,0);
+
+// TRAFFIC CARS
+const traffic=[];
+
+for(let i=0;i<12;i++){
+
+ let t=createCar(colors[i%3]);
+ t.scale.setScalar(0.8);
+ t.position.set(
+  Math.random()*400-200,
+  0,
+  Math.random()*400-200
+ );
+ t.userData.speed=0.15+Math.random()*0.25;
+ t.userData.direction=Math.random()>0.5?1:-1;
+ scene.add(t);
+ traffic.push(t);
+}
+
+// CHECKPOINTS
+const checkpointPositions=[
+ new THREE.Vector3(0,0,-100),
+ new THREE.Vector3(100,0,-100),
+ new THREE.Vector3(100,0,100),
+ new THREE.Vector3(-100,0,100),
+ new THREE.Vector3(-100,0,0)
+];
+
+let missionIndex=0;
+let coins=0;
+let speed=0;
+let rotation=0;
+let nitro=100;
+let running=false;
+
+const ring=new THREE.Mesh(
+ new THREE.TorusGeometry(6,0.6,12,40),
+ new THREE.MeshBasicMaterial({
+  color:0x00ffff
+ })
+);
+ring.rotation.x=Math.PI/2;
+scene.add(ring);
+
+function updateCheckpoint(){
+ ring.position.copy(checkpointPositions[missionIndex]);
+ ring.position.y=2;
+}
+
+updateCheckpoint();
+
+// CONTROLS
+const keys={};
+
+window.addEventListener("keydown",e=>{
+ keys[e.key.toLowerCase()]=true;
+ if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)){
+  e.preventDefault();
+ }
+});
+
+window.addEventListener("keyup",e=>{
+ keys[e.key.toLowerCase()]=false;
+});
+
+function bindButton(id,key){
+ const b=document.getElementById(id);
+
+ b.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  keys[key]=true;
+ });
+
+ ["pointerup","pointerleave","pointercancel"].forEach(event=>{
+  b.addEventListener(event,()=>keys[key]=false);
+ });
+}
+
+bindButton("gas","w");
+bindButton("brake","s");
+bindButton("left","a");
+bindButton("right","d");
+bindButton("boost","shift");
+
+// GARAGE
+window.openGarage=()=>{
+ document.getElementById("garage").style.display="block";
+};
+
+window.closeGarage=()=>{
+ document.getElementById("garage").style.display="none";
+};
+
+window.selectCar=(n)=>{
+ carType=n;
+ player.traverse(obj=>{
+  if(obj.isMesh && obj.material.color){
+   if(obj.geometry.type==="BoxGeometry"){
+    // Main body color is updated below.
+   }
+  }
+ });
+ player.children[0].material.color.set(colors[n]);
+ document.getElementById("carName").innerText=names[n];
+ closeGarage();
+};
+
+// START
+window.startGame=()=>{
+ document.getElementById("menu").style.display="none";
+ running=true;
+};
+
+// GAME LOOP
+const clock=new THREE.Clock();
+
+function animate(){
+
+ requestAnimationFrame(animate);
+
+ let dt=Math.min(clock.getDelta(),0.05);
+
+ if(running){
+
+  // ACCELERATION
+  if(keys.w || keys.arrowup){
+   speed+=0.30*dt*60;
+  }else{
+   speed*=0.985;
+  }
+
+  if(keys.s || keys.arrowdown){
+   speed-=0.35*dt*60;
+  }
+
+  speed=THREE.MathUtils.clamp(speed,-1.8,2.5);
+
+  // NITRO
+  if(keys.shift && nitro>0 && speed>0){
+   speed=Math.min(speed+0.12,3.5);
+   nitro=Math.max(0,nitro-0.6);
+  }else{
+   nitro=Math.min(100,nitro+0.12);
+  }
+
+  // STEERING
+  let turn=0;
+
+  if(keys.a || keys.arrowleft)turn=1;
+  if(keys.d || keys.arrowright)turn=-1;
+
+  if(Math.abs(speed)>0.03){
+   rotation+=turn*0.035*Math.sign(speed)*Math.min(1,Math.abs(speed));
+  }
+
+  if(keys[" "]){
+   speed*=0.97;
+  }
+
+  player.rotation.y=rotation;
+
+  player.position.x-=Math.sin(rotation)*speed;
+  player.position.z-=Math.cos(rotation)*speed;
+
+  // WHEEL ROTATION
+  player.userData.wheels.forEach(w=>{
+   w.rotation.x+=speed*0.1;
+  });
+
+  // TRAFFIC MOVEMENT
+  traffic.forEach(t=>{
+   t.position.x+=t.userData.direction*t.userData.speed;
+   if(t.position.x>220)t.position.x=-220;
+   if(t.position.x< -220)t.position.x=220;
+  });
+
+  // CAMERA FOLLOW
+  const behind=new THREE.Vector3(
+   Math.sin(rotation)*11,
+   7,
+   Math.cos(rotation)*11
+  );
+
+  const target=player.position.clone().add(behind);
+
+  camera.position.lerp(target,0.08);
+  camera.lookAt(
+   player.position.x,
+   player.position.y+1,
+   player.position.z
+  );
+
+  // MISSION CHECK
+  let targetPoint=checkpointPositions[missionIndex];
+
+  if(player.position.distanceTo(targetPoint)<9){
+
+   coins+=100;
+   missionIndex++;
+
+   if(missionIndex>=checkpointPositions.length){
+    missionIndex=0;
+    document.getElementById("missionText").innerText=
+    "🏆 City Tour Complete! New round started.";
+   }else{
+    document.getElementById("missionText").innerText=
+    "Mission "+(missionIndex+1)+": Reach the next checkpoint!";
+   }
+
+   updateCheckpoint();
+   showMessage("🎉 MISSION COMPLETE! +100 COINS");
+  }
+
+  // HUD
+  document.getElementById("speed").innerText=
+   Math.round(Math.abs(speed)*55)+" KM/H";
+
+  document.getElementById("coins").innerText="💰 Coins: "+coins;
+  document.getElementById("nitro").innerText=
+   "⚡ Nitro: "+Math.round(nitro)+"%";
+
+  ring.rotation.z+=dt*0.8;
+
+  drawMap();
+ }
+
+ renderer.render(scene,camera);
+}
+
+// MINI MAP
+function drawMap(){
+
+ const canvas=document.getElementById("map");
+ const ctx=canvas.getContext("2d");
+
+ ctx.clearRect(0,0,125,125);
+ ctx.fillStyle="#172a45";
+ ctx.fillRect(0,0,125,125);
+
+ ctx.strokeStyle="#8397ac";
+ ctx.lineWidth=5;
+
+ for(let i=0;i<125;i+=20){
+  ctx.beginPath();
+  ctx.moveTo(i,0);
+  ctx.lineTo(i,125);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0,i);
+  ctx.lineTo(125,i);
+  ctx.stroke();
+ }
+
+ function mapPoint(x,z){
+  return {
+   x:62.5+x/600*125,
+   y:62.5+z/600*125
+  };
+ }
+
+ const p=mapPoint(player.position.x,player.position.z);
+ const cp=mapPoint(
+  checkpointPositions[missionIndex].x,
+  checkpointPositions[missionIndex].z
+ );
+
+ ctx.fillStyle="#00ffff";
+ ctx.beginPath();
+ ctx.arc(cp.x,cp.y,5,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.fillStyle="#ff4040";
+ ctx.beginPath();
+ ctx.arc(p.x,p.y,5,0,Math.PI*2);
+ ctx.fill();
+}
+
+let messageTimer;
+
+function showMessage(text){
+ const el=document.getElementById("message");
+ el.innerText=text;
+ el.style.display="block";
+ clearTimeout(messageTimer);
+ messageTimer=setTimeout(()=>{
+  el.style.display="none";
+ },2000);
+}
+
+window.addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+
+camera.position.set(0,8,12);
+camera.lookAt(0,0,0);
+
+drawMap();
+animate();
+
+</script>
+</body>
+    </html>
+  
